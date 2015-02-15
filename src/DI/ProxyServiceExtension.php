@@ -13,7 +13,7 @@ use Nette\DirectoryNotFoundException;
  */
 class ProxyServiceExtension extends CompilerExtension
 {
-    const LAZY = 'proxyService';
+    const LAZY = 'lazy';
 
     private $defaults = array(
         'cacheDir' => '%tempDir%/proxyService',
@@ -45,8 +45,8 @@ class ProxyServiceExtension extends CompilerExtension
     {
         $builder = $this->getContainerBuilder();
 
-
-        foreach (array_keys($builder->findByTag(static::LAZY)) as $serviceName) {
+        $tag = $this->prefix(static::LAZY);
+        foreach (array_keys($builder->findByTag($tag)) as $serviceName) {
             $definition = $builder->getDefinition($serviceName);
             $builder->removeDefinition($serviceName);
 
