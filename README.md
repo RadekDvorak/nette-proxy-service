@@ -17,4 +17,6 @@ proxyService:
 	cacheDir: some/directory
 ```
 
+- Tag selected services with proxyService.lazy
+
 - Setup an autoloader for the cacheDir (see [RobotLoader](http://doc.nette.org/en/2.2/configuring#toc-class-auto-loading))
