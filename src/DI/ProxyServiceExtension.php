@@ -3,7 +3,6 @@
 
 namespace NetteProxyService\DI;
 
-
 use Nette\DI\CompilerExtension;
 use Nette\DI\ContainerBuilder;
 use Nette\DirectoryNotFoundException;
@@ -45,8 +44,10 @@ class ProxyServiceExtension extends CompilerExtension
                 ->addSetup('setProxiesTargetDir', array($config['cacheDir']));
 
             $this->builder->addDefinition($this->prefix('proxyFactory'))
-                ->setClass('ProxyManager\Factory\LazyLoadingValueHolderFactory',
-                    array('@' . $this->prefix('configuration')));
+                ->setClass(
+                    'ProxyManager\Factory\LazyLoadingValueHolderFactory',
+                    array('@' . $this->prefix('configuration'))
+                );
 
             $this->builder->addDefinition($this->prefix('lazyServiceFactory'))
                 ->setClass('NetteProxyService\LazyServiceFactory')
@@ -87,8 +88,10 @@ class ProxyServiceExtension extends CompilerExtension
         $hiddenServiceName = $this->prefix($serviceName);
         $this->builder->addDefinition($serviceName)
             ->setClass($definition->getClass())
-            ->setFactory('@' . $this->prefix('lazyServiceFactory') . '::create',
-                array($hiddenServiceName, $definition->getClass()));
+            ->setFactory(
+                '@' . $this->prefix('lazyServiceFactory') . '::create',
+                array($hiddenServiceName, $definition->getClass())
+            );
 
         $this->builder->addDefinition($hiddenServiceName, $definition)
             ->setAutowired(false);
@@ -107,8 +110,10 @@ class ProxyServiceExtension extends CompilerExtension
         $proxyClassName = $definition->getClass() . md5(serialize($definition));
         $this->builder->addDefinition($serviceName)
             ->setClass($proxyClassName)
-            ->setFactory('@' . $this->prefix('eagerServiceFactory') . '::create',
-                array($hiddenServiceName, $proxyClassName));
+            ->setFactory(
+                '@' . $this->prefix('eagerServiceFactory') . '::create',
+                array($hiddenServiceName, $proxyClassName)
+            );
 
         $this->builder->addDefinition($hiddenServiceName, $definition)
             ->setAutowired(false);

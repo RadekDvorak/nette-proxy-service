@@ -3,7 +3,6 @@
 
 namespace NetteProxyService;
 
-
 use Nette\DI\Container;
 
 /**
@@ -34,8 +33,15 @@ class EagerServiceFactory
          *
          * @return bool true on success
          */
-        $initializer = function (& $wrappedObject, $proxy, $method, $parameters, & $initializer) use (
-            $hiddenServiceName, $container
+        $initializer = function (
+            & $wrappedObject,
+            $proxy,
+            $method,
+            $parameters,
+            & $initializer
+        ) use (
+            $hiddenServiceName,
+            $container
         ) {
             $wrappedObject = $container->getService($hiddenServiceName);
             $initializer = null;

@@ -3,7 +3,6 @@
 
 namespace NetteProxyService;
 
-
 use Nette\DI\Container;
 use ProxyManager\Factory\LazyLoadingValueHolderFactory;
 
@@ -40,7 +39,13 @@ class LazyServiceFactory
          *
          * @return bool true on success
          */
-        $initializer = function (& $wrappedObject, $proxy, $method, $parameters, & $initializer) use (
+        $initializer = function (
+            & $wrappedObject,
+            $proxy,
+            $method,
+            $parameters,
+            & $initializer
+        ) use (
             $container,
             $hiddenServiceName
         ) {
