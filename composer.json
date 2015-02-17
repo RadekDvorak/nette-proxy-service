@@ -26,5 +26,8 @@
     "psr-4": {
       "NetteProxyService\\": "src/"
     }
+  },
+  "require-dev": {
+    "squizlabs/php_codesniffer": "~2.2"
   }
 }
