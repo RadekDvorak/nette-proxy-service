@@ -15,6 +15,8 @@ extensions:
 ```yml
 proxyService:
 	cacheDir: some/directory
+	# disable in production
+	autogenerateProxyClasses: true
 ```
 
 - Tag selected services with proxyService.lazy

@@ -10,19 +10,24 @@ use ProxyManager\Factory\LazyLoadingValueHolderFactory;
 /**
  * Proxy class instantiator
  */
-class ServiceFactory
+class LazyServiceFactory
 {
 
     /** @var LazyLoadingValueHolderFactory */
     private $proxyFactory;
 
-    public function __construct(LazyLoadingValueHolderFactory $proxyFactory)
+    /** @var Container */
+    private $container;
+
+    public function __construct(LazyLoadingValueHolderFactory $proxyFactory, Container $container)
     {
         $this->proxyFactory = $proxyFactory;
+        $this->container = $container;
     }
 
-    public function create(Container $container, $hiddenServiceName, $proxyClassName)
+    public function create($hiddenServiceName, $proxyClassName)
     {
+        $container = $this->container;
         /**
          * @var object $wrappedObject the instance (passed by reference) of the wrapped object,
          *                             set it to your real object

@@ -7,6 +7,9 @@ namespace NetteProxyService\DI;
 use Nette\DI\CompilerExtension;
 use Nette\DI\ContainerBuilder;
 use Nette\DirectoryNotFoundException;
+use ProxyManager\Generator\ClassGenerator;
+use ProxyManager\ProxyGenerator\LazyLoadingValueHolderGenerator;
+use ProxyManager\ProxyGenerator\ProxyGeneratorInterface;
 
 /**
  * Loads the extension into Nette Framework
@@ -17,11 +20,18 @@ class ProxyServiceExtension extends CompilerExtension
 
     private $defaults = array(
         'cacheDir' => '%tempDir%/proxyService',
+        'autogenerateProxyClasses' => true,
     );
+
+    /** @var ContainerBuilder */
+    private $builder;
+
+    /** @var ProxyGeneratorInterface */
+    private $proxyGenerator;
 
     public function loadConfiguration()
     {
-        $builder = $this->getContainerBuilder();
+        $this->builder = $this->getContainerBuilder();
         $config = $this->getConfig($this->defaults);
 
         if (!is_dir($config['cacheDir'])) {
@@ -29,35 +39,93 @@ class ProxyServiceExtension extends CompilerExtension
             throw new DirectoryNotFoundException($message);
         }
 
-        $builder->addDefinition($this->prefix('configuration'))
-            ->setClass('ProxyManager\Configuration')
-            ->addSetup('setProxiesTargetDir', array($config['cacheDir']));
+        if ($config['autogenerateProxyClasses']) {
+            $this->builder->addDefinition($this->prefix('configuration'))
+                ->setClass('ProxyManager\Configuration')
+                ->addSetup('setProxiesTargetDir', array($config['cacheDir']));
 
-        $builder->addDefinition($this->prefix('proxyFactory'))
-            ->setClass('ProxyManager\Factory\LazyLoadingValueHolderFactory',
-                array('@' . $this->prefix('configuration')));
+            $this->builder->addDefinition($this->prefix('proxyFactory'))
+                ->setClass('ProxyManager\Factory\LazyLoadingValueHolderFactory',
+                    array('@' . $this->prefix('configuration')));
 
-        $builder->addDefinition($this->prefix('serviceFactory'))
-            ->setClass('NetteProxyService\ServiceFactory', array('@' . $this->prefix('proxyFactory')));
+            $this->builder->addDefinition($this->prefix('lazyServiceFactory'))
+                ->setClass('NetteProxyService\LazyServiceFactory')
+                ->setArguments(array('@' . $this->prefix('proxyFactory'), '@' . ContainerBuilder::THIS_CONTAINER));
+        } else {
+            $this->builder->addDefinition($this->prefix('eagerServiceFactory'))
+                ->setClass('NetteProxyService\EagerServiceFactory', array('@' . ContainerBuilder::THIS_CONTAINER));
+        }
     }
 
     public function beforeCompile()
     {
-        $builder = $this->getContainerBuilder();
+        $config = $this->getConfig($this->defaults);
+        $cacheDirectory = $config['cacheDir'] . "/";
 
         $tag = $this->prefix(static::LAZY);
-        foreach (array_keys($builder->findByTag($tag)) as $serviceName) {
-            $definition = $builder->getDefinition($serviceName);
-            $builder->removeDefinition($serviceName);
+        if ($config['autogenerateProxyClasses']) {
+            foreach (array_keys($this->builder->findByTag($tag)) as $serviceName) {
+                $this->createLazyProxy($serviceName);
+            }
+        } else {
+            $this->proxyGenerator = new LazyLoadingValueHolderGenerator();
+            foreach (array_keys($this->builder->findByTag($tag)) as $serviceName) {
+                $this->createEagerProxy($serviceName, $cacheDirectory);
+            }
+        }
 
-            $hiddenServiceName = $this->prefix($serviceName);
-            $builder->addDefinition($serviceName)
-                ->setClass($definition->getClass())
-                ->setFactory('@' . $this->prefix('serviceFactory') . '::create',
-                    array('@' . ContainerBuilder::THIS_CONTAINER, $hiddenServiceName, $definition->getClass()));
+    }
 
-            $builder->addDefinition($hiddenServiceName, $definition)
-                ->setAutowired(false);
+    /**
+     * @param string $serviceName
+     */
+    private function createLazyProxy($serviceName)
+    {
+        $definition = $this->builder->getDefinition($serviceName);
+        $this->builder->removeDefinition($serviceName);
+
+        $hiddenServiceName = $this->prefix($serviceName);
+        $this->builder->addDefinition($serviceName)
+            ->setClass($definition->getClass())
+            ->setFactory('@' . $this->prefix('lazyServiceFactory') . '::create',
+                array($hiddenServiceName, $definition->getClass()));
+
+        $this->builder->addDefinition($hiddenServiceName, $definition)
+            ->setAutowired(false);
+    }
+
+    /**
+     * @param string $serviceName
+     * @param string $cacheDirectory
+     */
+    private function createEagerProxy($serviceName, $cacheDirectory)
+    {
+        $definition = $this->builder->getDefinition($serviceName);
+        $this->builder->removeDefinition($serviceName);
+
+        $hiddenServiceName = $this->prefix($serviceName);
+        $proxyClassName = $definition->getClass() . md5(serialize($definition));
+        $this->builder->addDefinition($serviceName)
+            ->setClass($proxyClassName)
+            ->setFactory('@' . $this->prefix('eagerServiceFactory') . '::create',
+                array($hiddenServiceName, $proxyClassName));
+
+        $this->builder->addDefinition($hiddenServiceName, $definition)
+            ->setAutowired(false);
+
+        if (!class_exists($proxyClassName)) {
+            $classGenerator = new ClassGenerator();
+            $this->proxyGenerator->generate(new \ReflectionClass($definition->getClass()), $classGenerator);
+            $classGenerator->setName($proxyClassName);
+
+            $code = '<?php' . ClassGenerator::LINE_FEED . $classGenerator->generate();
+            $tempPath = $cacheDirectory . uniqid() . ".php";
+            $backslashPos = strrpos($proxyClassName, '\\');
+            $newPath = $cacheDirectory . substr($proxyClassName, $backslashPos ? $backslashPos + 1 : 0) . ".php";
+
+            file_put_contents($tempPath, $code, LOCK_EX);
+            rename($tempPath, $newPath);
+            require_once $newPath;
         }
     }
 }
